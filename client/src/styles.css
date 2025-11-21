@@ -4,7 +4,6 @@
   margin: auto;
   text-align: center;
 }
-
 .chat-window {
   border: 1px solid #ccc;
   padding: 10px;
@@ -12,7 +11,6 @@
   overflow-y: auto;
   margin-bottom: 10px;
 }
-
 .bubble {
   padding: 8px 12px;
   margin: 5px;
@@ -20,25 +18,21 @@
   display: inline-block;
   max-width: 80%;
 }
-
 .bubble.user {
   background-color: #007bff;
   color: white;
   text-align: right;
 }
-
 .bubble.ai {
   background-color: #f1f1f1;
   color: black;
   text-align: left;
 }
-
 .quick-replies button,
 .flight-card button {
   margin: 5px;
   padding: 8px 12px;
 }
-
 .flight-card {
   border: 1px solid #ddd;
   padding: 10px;
