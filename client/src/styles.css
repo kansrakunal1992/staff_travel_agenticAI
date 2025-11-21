@@ -1,0 +1,47 @@
+.app {
+  font-family: Arial, sans-serif;
+  max-width: 600px;
+  margin: auto;
+  text-align: center;
+}
+
+.chat-window {
+  border: 1px solid #ccc;
+  padding: 10px;
+  height: 300px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.bubble {
+  padding: 8px 12px;
+  margin: 5px;
+  border-radius: 10px;
+  display: inline-block;
+  max-width: 80%;
+}
+
+.bubble.user {
+  background-color: #007bff;
+  color: white;
+  text-align: right;
+}
+
+.bubble.ai {
+  background-color: #f1f1f1;
+  color: black;
+  text-align: left;
+}
+
+.quick-replies button,
+.flight-card button {
+  margin: 5px;
+  padding: 8px 12px;
+}
+
+.flight-card {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin: 10px;
+  border-radius: 8px;
+}
