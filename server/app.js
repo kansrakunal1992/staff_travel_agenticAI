@@ -7,19 +7,23 @@ const app = express();
 app.use(bodyParser.json());
 app.use(express.static('static'));
 
-// TODO: Insert your credentials below
-const DEEPSEEK_API_KEY = 'YOUR_DEEPSEEK_API_KEY';
-const AMADEUS_API_KEY = 'YOUR_AMADEUS_API_KEY';
-const AMADEUS_API_SECRET = 'YOUR_AMADEUS_API_SECRET';
-const AIRTABLE_API_KEY = 'YOUR_AIRTABLE_API_KEY';
-const AIRTABLE_BASE_ID = 'YOUR_AIRTABLE_BASE_ID';
-const AIRTABLE_TABLE_NAME = 'PNR_Records';
+// Credentials from environment variables
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+const AMADEUS_API_KEY = process.env.AMADEUS_API_KEY;
+const AMADEUS_API_SECRET = process.env.AMADEUS_API_SECRET;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+const AIRTABLE_TABLE_NAME = process.env.AIRTABLE_TABLE_NAME;
 
-// Configure Airtable
+// Airtable setup
 const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
+
+// Session store for clarifications
+let userSessions = {};
 
 app.post('/api/process', async (req, res) => {
     const userQuery = req.body.query;
+    const sessionId = req.body.sessionId || 'default';
 
     try {
         // Step 1: NLP via DeepSeek
@@ -36,15 +40,67 @@ app.post('/api/process', async (req, res) => {
         const origin = nlpData.origin || 'DEL';
         const destination = nlpData.destination || 'BOM';
         const travelType = nlpData.travelType || 'Duty';
+        const date = nlpData.date || 'tomorrow';
 
-        // Step 2: Flight Search via Amadeus (placeholder)
-        // TODO: Implement Amadeus Flight Offers Search API call here
+        // Check if user preference (morning/evening) is missing
+        if (!nlpData.timePreference && !userSessions[sessionId]?.timePreference) {
+            userSessions[sessionId] = { origin, destination, travelType, date };
+            return res.json({ message: "Do you prefer morning or evening flights?" });
+        }
 
-        // Step 3: Create PNR via Amadeus (placeholder)
-        // TODO: Implement Amadeus Booking API call here
+        // If user just answered preference
+        if (userQuery.toLowerCase().includes('morning') || userQuery.toLowerCase().includes('evening')) {
+            userSessions[sessionId].timePreference = userQuery.toLowerCase();
+        }
 
-        // Mock PNR for now
-        const pnrId = 'PNR-' + Math.floor(Math.random() * 100000);
+        const timePref = userSessions[sessionId]?.timePreference || 'any';
+
+        // Step 2: Flight Search via Amadeus
+        const tokenResponse = await fetch('https://test.api.amadeus.com/v1/security/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `grant_type=client_credentials&client_id=${AMADEUS_API_KEY}&client_secret=${AMADEUS_API_SECRET}`
+        });
+        const tokenData = await tokenResponse.json();
+        const accessToken = tokenData.access_token;
+
+        const flightSearchUrl = `https://test.api.amadeus.com/v2/shopping/flight-offers?originLocationCode=${origin}&destinationLocationCode=${destination}&departureDate=${date}&adults=1`;
+        const flightResponse = await fetch(flightSearchUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const flightData = await flightResponse.json();
+
+        // Prepare flight options
+        const options = flightData.data.slice(0, 3).map((offer, idx) => {
+            const segment = offer.itineraries[0].segments[0];
+            return `Option ${idx + 1}: ${segment.carrierCode}${segment.number} at ${segment.departure.at}`;
+        });
+
+        // If user hasn't picked an option yet
+        if (!userQuery.toLowerCase().includes('option')) {
+            return res.json({ message: `Here are your flight options:\n${options.join('\n')}\nPlease reply with Option 1, 2, or 3.` });
+        }
+
+        // Step 3: If user picks an option, create PNR
+        const selectedIndex = parseInt(userQuery.match(/\d+/)?.[0]) - 1;
+        const selectedOffer = flightData.data[selectedIndex];
+
+        const bookingResponse = await fetch('https://test.api.amadeus.com/v1/booking/flight-orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({
+                data: {
+                    type: "flight-order",
+                    flightOffers: [selectedOffer],
+                    travelers: [{ id: "1", dateOfBirth: "1980-01-01", name: { firstName: "Test", lastName: "User" } }]
+                }
+            })
+        });
+        const bookingData = await bookingResponse.json();
+        const pnrId = bookingData.data.id || 'PNR-' + Math.floor(Math.random() * 100000);
 
         // Step 4: Store in Airtable
         await base(AIRTABLE_TABLE_NAME).create({
