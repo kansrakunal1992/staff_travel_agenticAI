@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const fetch = require('node-fetch');
 const Airtable = require('airtable');
@@ -5,7 +6,14 @@ const bodyParser = require('body-parser');
 
 const app = express();
 app.use(bodyParser.json());
-app.use(express.static('static'));
+// Serve React build folder
+app.use(express.static(path.join(__dirname, '../client/build')));
+
+// Catch-all route for React
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+});
+
 
 // Toggle: Set to true for mock mode (no external API calls)
 const MOCK_MODE = true;
