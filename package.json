@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "server/app.js",
   "scripts": {
-    "start": "node server/app.js"
+    "start": "node server/app.js",
+    "build-client": "cd client && npm install && npm run build"
   },
   "dependencies": {
     "express": "^4.18.2",
