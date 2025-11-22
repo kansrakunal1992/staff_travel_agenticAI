@@ -1,80 +1,98 @@
+
 const path = require('path');
 const express = require('express');
-const fetch = require('node-fetch');
-const Airtable = require('airtable');
 const bodyParser = require('body-parser');
 
 const app = express();
 app.use(bodyParser.json());
 
-// ✅ Serve static HTML
+// Serve static HTML
 app.use(express.static(path.join(__dirname, '../static')));
 
-// ✅ Mock Mode toggle
 const MOCK_MODE = true;
-
-// ✅ Environment variables
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'mock-key';
-const AMADEUS_API_KEY = process.env.AMADEUS_API_KEY || 'mock-key';
-const AMADEUS_API_SECRET = process.env.AMADEUS_API_SECRET || 'mock-secret';
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || 'mock-key';
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'mock-base';
-const AIRTABLE_TABLE_NAME = process.env.AIRTABLE_TABLE_NAME || 'PNR_Records';
-
-const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
 let userSessions = {};
 
 app.post('/api/process', async (req, res) => {
-  const userQuery = req.body.query;
+  const userQuery = req.body.query.toLowerCase();
   const sessionId = req.body.sessionId || 'default';
 
   try {
-    let origin = 'DEL', destination = 'BOM', travelType = 'Duty', date = 'tomorrow';
-
-    if (!MOCK_MODE) {
-      const deepseekResponse = await fetch('https://api.deepseek.com/v1/nlp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-        },
-        body: JSON.stringify({ text: userQuery })
-      });
-      const nlpData = await deepseekResponse.json();
-      origin = nlpData.origin || origin;
-      destination = nlpData.destination || destination;
-      travelType = nlpData.travelType || travelType;
-      date = nlpData.date || date;
+    // Initialize session
+    if (!userSessions[sessionId]) {
+      userSessions[sessionId] = { travelType: null, dependents: [] };
     }
 
-    // Clarification
-    if (!userSessions[sessionId]?.timePreference &&
-        !userQuery.toLowerCase().includes('morning') &&
-        !userQuery.toLowerCase().includes('evening')) {
-      userSessions[sessionId] = { origin, destination, travelType, date };
-      return res.json({ type: 'clarification', message: "Do you prefer morning or evening flights?" });
+    // Detect dependents
+    if (userQuery.includes('wife') || userQuery.includes('children') || userQuery.includes('dependent')) {
+      userSessions[sessionId].dependents.push(userQuery);
+      return res.json({ type: 'message', message: `Added dependent: ${userQuery}. You can continue booking.` });
     }
 
-    if (userQuery.toLowerCase().includes('morning') || userQuery.toLowerCase().includes('evening')) {
-      userSessions[sessionId].timePreference = userQuery.toLowerCase();
+    // Detect travel type
+    if (userQuery.includes('book')) {
+      if (userQuery.includes('duty')) {
+        userSessions[sessionId].travelType = 'duty';
+        return res.json({
+          type: 'approval',
+          message: 'Duty travel requires manager approval. Click Approve to proceed.',
+          entitlement: 'You have 10 out of 14 passages remaining this financial year.'
+        });
+      } else if (userQuery.includes('leisure')) {
+        userSessions[sessionId].travelType = 'leisure';
+        const options = [
+          { id: 1, airline: 'Air India', flight: 'AI101', time: '07:00 AM', probability: '92%' },
+          { id: 2, airline: 'Air India', flight: 'AI202', time: '02:30 PM', probability: '85%' },
+          { id: 3, airline: 'Air India', flight: 'AI303', time: '09:00 PM', probability: '78%' }
+        ];
+        return res.json({
+          type: 'options',
+          options,
+          entitlement: 'You have 10 out of 14 passages remaining this financial year.'
+        });
+      }
     }
 
-    // Mock flight options
-    if (userQuery.toLowerCase().includes('book')) {
+    // Approval for duty travel
+    if (userQuery.includes('approve') && userSessions[sessionId].travelType === 'duty') {
       const options = [
-        { id: 1, airline: 'IndiGo', flight: '6E123', time: '07:00 AM' },
-        { id: 2, airline: 'Air India', flight: 'AI456', time: '09:30 AM' },
-        { id: 3, airline: 'Vistara', flight: 'UK789', time: '06:00 PM' }
+        { id: 1, airline: 'Air India', flight: 'AI101', time: '07:00 AM', probability: '92%' },
+        { id: 2, airline: 'Air India', flight: 'AI202', time: '02:30 PM', probability: '85%' },
+        { id: 3, airline: 'Air India', flight: 'AI303', time: '09:00 PM', probability: '78%' }
       ];
-      return res.json({ type: 'options', options });
+      return res.json({
+        type: 'options',
+        options,
+        entitlement: 'You have 10 out of 14 passages remaining this financial year.'
+      });
     }
 
-    if (userQuery.toLowerCase().includes('option')) {
+    // Selecting flight option
+    if (userQuery.includes('option')) {
+      if (userSessions[sessionId].travelType === 'duty') {
+        const pnrId = 'PNR-' + Math.floor(Math.random() * 100000);
+        return res.json({
+          type: 'confirmation',
+          message: `Duty travel approved and booked! PNR: ${pnrId}. Dependents: ${userSessions[sessionId].dependents.join(', ') || 'None'}`
+        });
+      } else if (userSessions[sessionId].travelType === 'leisure') {
+        return res.json({
+          type: 'payment',
+          message: 'Select a payment method:',
+          methods: ['Credit Card', 'UPI', 'Net Banking']
+        });
+      }
+    }
+
+    // Payment confirmation
+    if (userQuery.includes('pay')) {
       const pnrId = 'PNR-' + Math.floor(Math.random() * 100000);
-      return res.json({ type: 'confirmation', message: `Booking confirmed with PNR: ${pnrId}` });
+      return res.json({
+        type: 'confirmation',
+        message: `Payment successful! Leisure travel booked. PNR: ${pnrId}. Dependents: ${userSessions[sessionId].dependents.join(', ') || 'None'}`
+      });
     }
 
-    res.json({ type: 'message', message: 'Please start with "Book duty travel..."' });
+    res.json({ type: 'message', message: 'Please start with "Book duty travel..." or "Book leisure travel..."' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error processing request' });
