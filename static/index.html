@@ -1,37 +1,49 @@
+
 <!DOCTYPE html>
 <html>
 <head>
   <title>Agentic AI Staff Travel</title>
   <style>
-    body { font-family: Arial; text-align: center; margin-top: 50px; }
+    body { font-family: Arial; text-align: center; margin-top: 50px; background-color: #fff; color: #000; }
+    .dark-mode { background-color: #121212; color: #fff; }
     input[type=text] { width: 60%; padding: 10px; font-size: 16px; }
-    button { padding: 10px 20px; font-size: 16px; margin-left: 10px; }
+    button { padding: 10px 20px; font-size: 16px; margin: 5px; }
     #response { margin-top: 20px; font-weight: bold; white-space: pre-line; }
-    .quick-replies button { margin: 5px; padding: 8px 12px; }
     .flight-card { border: 1px solid #ddd; padding: 10px; margin: 10px auto; width: 300px; border-radius: 8px; }
     .flight-card button { margin-top: 10px; }
+    .progress { margin-top: 20px; font-size: 14px; }
+    .progress span { margin: 0 5px; }
   </style>
 </head>
 <body>
   <h1>Agentic AI Staff Travel</h1>
+  <button onclick="toggleDarkMode()">Toggle Dark Mode 🌙</button>
+  <div class="progress" id="progressTracker">Step: Start</div>
   <input type="text" id="userInput" placeholder="Enter your request (e.g., Book duty travel Delhi to Mumbai)">
   <button onclick="submitRequest()">Submit</button>
   <div id="response"></div>
-  <div class="quick-replies" id="quickReplies"></div>
-  <div id="flightOptions"></div>
+  <div id="dynamicArea"></div>
 
   <script>
     let sessionId = Date.now().toString();
+    let step = 'Start';
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+
+    function updateProgress(newStep) {
+      step = newStep;
+      document.getElementById('progressTracker').innerHTML = `Step: ${step}`;
+    }
 
     async function submitRequest(queryOverride) {
       const input = queryOverride || document.getElementById('userInput').value;
       const responseDiv = document.getElementById('response');
-      const quickRepliesDiv = document.getElementById('quickReplies');
-      const flightOptionsDiv = document.getElementById('flightOptions');
+      const dynamicArea = document.getElementById('dynamicArea');
 
       responseDiv.innerHTML = 'Processing...';
-      quickRepliesDiv.innerHTML = '';
-      flightOptionsDiv.innerHTML = '';
+      dynamicArea.innerHTML = '';
 
       const res = await fetch('/api/process', {
         method: 'POST',
@@ -42,26 +54,37 @@
       const data = await res.json();
       responseDiv.innerHTML = '';
 
-      if (data.type === 'clarification') {
-        responseDiv.innerHTML = data.message;
-        quickRepliesDiv.innerHTML = `
-          <button onclick="submitRequest('Morning')">Morning ☀️</button>
-          <button onclick="submitRequest('Evening')">Evening 🌙</button>
-          <button onclick="submitRequest('Any Time')">Any Time ⏰</button>
-        `;
+      if (data.entitlement) {
+        responseDiv.innerHTML += `<p><strong>${data.entitlement}</strong></p>`;
+      }
+
+      if (data.type === 'approval') {
+        updateProgress('Approval');
+        responseDiv.innerHTML += data.message;
+        dynamicArea.innerHTML = `<button onclick="submitRequest('Approve')">Approve ✅</button>`;
       } else if (data.type === 'options') {
-        responseDiv.innerHTML = 'Here are your flight options:';
+        updateProgress('Select Flight');
+        responseDiv.innerHTML += 'Top flight recommendations:';
         data.options.forEach(opt => {
-          flightOptionsDiv.innerHTML += `
+          dynamicArea.innerHTML += `
             <div class="flight-card">
               <h3>${opt.airline}</h3>
-              <p>${opt.flight} - ${opt.time}</p>
+              <p>${opt.flight} - ${opt.time} (Acceptance Probability: ${opt.probability})</p>
               <button onclick="submitRequest('Option ${opt.id}')">Select Option ${opt.id}</button>
             </div>
           `;
         });
+      } else if (data.type === 'payment') {
+        updateProgress('Payment');
+        responseDiv.innerHTML += data.message;
+        data.methods.forEach(method => {
+          dynamicArea.innerHTML += `<button onclick="submitRequest('Pay with ${method}')">${method}</button>`;
+        });
+      } else if (data.type === 'confirmation') {
+        updateProgress('Confirmation');
+        responseDiv.innerHTML += data.message;
       } else {
-        responseDiv.innerHTML = data.message;
+        responseDiv.innerHTML += data.message;
       }
     }
   </script>
