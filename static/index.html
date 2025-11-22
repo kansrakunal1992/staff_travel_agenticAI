@@ -61,7 +61,8 @@
       if (data.type === 'approval') {
         updateProgress('Approval');
         responseDiv.innerHTML += data.message;
-        dynamicArea.innerHTML = `<button onclick="submitRequest('Approve')">Approve ✅</button>`;
+        // Button now labeled "Request Approval" and sends "Ok approved"
+        dynamicArea.innerHTML = `<button onclick="submitRequest('Ok approved')">Request Approval ✅</button>`;
       } else if (data.type === 'options') {
         updateProgress('Select Flight');
         responseDiv.innerHTML += 'Top flight recommendations:';
